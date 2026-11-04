@@ -1,0 +1,43 @@
+.gradle/
+.idea/
+**/build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+coverage/
+local.properties
+*.iml
+.DS_Store
+# Firebase debug logs
+firestore-debug.log
+
+# Environment files
+.env
+.env.*
+
+# Private credentials
+service-account*.json
+*-private-key.json
+
+# Firebase configuration - do not commit
+lib/firebase_options.dart
+android/app/google-services.json
+
+# Firebase debug logs
+firestore-debug.log
+
+# Environment files
+.env
+.env.*
+
+# Private credentials
+service-account*.json
+*-private-key.json
+
+# Build files
+**/build/
+.dart_tool/
+
+# IDE files
+.idea/
+.vscode/

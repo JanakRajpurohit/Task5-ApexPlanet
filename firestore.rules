@@ -1,0 +1,430 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userHasRole(userId, role) {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(userId)).data.role == role;
+    }
+
+    function userWillHaveRole(userId, role) {
+      return signedIn()
+        && getAfter(/databases/$(database)/documents/users/$(userId)).data.role == role;
+    }
+
+    function sellerOwnsRestaurant(restaurantId) {
+      return userHasRole(restaurantId, 'seller')
+        && request.auth.uid == restaurantId;
+    }
+
+    function orderQuantityForFood(order, foodId) {
+      let items = order.items;
+      return (items.size() > 0 && items[0].foodId == foodId
+          ? items[0].quantity
+          : 0)
+        + (items.size() > 1 && items[1].foodId == foodId
+          ? items[1].quantity
+          : 0)
+        + (items.size() > 2 && items[2].foodId == foodId
+          ? items[2].quantity
+          : 0)
+        + (items.size() > 3 && items[3].foodId == foodId
+          ? items[3].quantity
+          : 0)
+        + (items.size() > 4 && items[4].foodId == foodId
+          ? items[4].quantity
+          : 0);
+    }
+
+    function validOrderLine(order, index, orderId) {
+      let item = order.items[index];
+      let foodPath = /databases/$(database)/documents/foods/$(item.foodId);
+      let food = getAfter(foodPath).data;
+      let quantity = order.inventoryChanges[item.foodId];
+      let price = food.discountedPrice is int
+        && food.discountedPrice > 0
+        && food.discountedPrice < food.price
+        ? food.discountedPrice
+        : food.price;
+      return item.keys().hasOnly([
+          'foodId', 'name', 'category', 'description', 'imageUrl', 'cuisine',
+          'preparationMinutes', 'isVegetarian', 'customizations', 'quantity',
+          'unitPrice', 'lineTotal'
+        ])
+        && item.foodId is string
+        && item.quantity is int
+        && item.quantity > 0
+        && item.quantity <= 20
+        && item.unitPrice == price
+        && item.lineTotal == item.unitPrice * item.quantity
+        && item.customizations is list
+        && food.ownerId == order.restaurantId
+        && food.restaurantId == order.restaurantId
+        && food.isPublished == true
+        && food.stock is int
+        && quantity is int
+        && quantity == orderQuantityForFood(order, item.foodId)
+        && food.stock + quantity >= quantity
+        && food.isAvailable == (food.stock > 0)
+        && order.foodIds.hasAny([item.foodId])
+        && food.lastOrderId == orderId;
+    }
+
+    function validOrderItems(order, orderId) {
+      return order.items is list
+        && order.items.size() > 0
+        && order.items.size() <= 5
+        && order.inventoryChanges is map
+        && order.foodIds is list
+        && order.foodIds.size() > 0
+        && order.foodIds.size() <= 5
+        && validOrderLine(order, 0, orderId)
+        && (order.items.size() < 2 || validOrderLine(order, 1, orderId))
+        && (order.items.size() < 3 || validOrderLine(order, 2, orderId))
+        && (order.items.size() < 4 || validOrderLine(order, 3, orderId))
+        && (order.items.size() < 5 || validOrderLine(order, 4, orderId));
+    }
+
+    function validOrderTotal(order) {
+      let items = order.items;
+      let subtotal = items[0].lineTotal
+        + (items.size() > 1 ? items[1].lineTotal : 0)
+        + (items.size() > 2 ? items[2].lineTotal : 0)
+        + (items.size() > 3 ? items[3].lineTotal : 0)
+        + (items.size() > 4 ? items[4].lineTotal : 0);
+      return order.subtotal == subtotal
+        && order.totalAmount == subtotal
+        && order.deliveryFee == 0
+        && order.discount == 0;
+    }
+
+    function validNewOrder(order, orderId) {
+      let restaurantPath = /databases/$(database)/documents/restaurants/$(order.restaurantId);
+      let restaurant = get(restaurantPath).data;
+      return signedIn()
+        && userHasRole(request.auth.uid, 'customer')
+        && order.customerId == request.auth.uid
+        && order.sellerId == order.restaurantId
+        && restaurant.ownerId == order.restaurantId
+        && restaurant.isOpen == true
+        && order.orderStatus == 'New'
+        && order.paymentMethod == 'Cash on Delivery'
+        && order.paymentStatus == 'Pending'
+        && order.createdAt == request.time
+        && order.keys().hasOnly([
+          'orderId', 'restaurantId', 'restaurantName', 'sellerId', 'customerId',
+          'customerName', 'customerPhone', 'items', 'foodIds',
+          'inventoryChanges', 'subtotal', 'deliveryFee', 'discount',
+          'totalAmount', 'paymentMethod', 'paymentStatus', 'orderStatus',
+          'deliveryAddress', 'instructions', 'preparationMinutes',
+          'statusHistory', 'createdAt'
+        ])
+        && order.deliveryAddress is map
+        && order.deliveryAddress.name is string
+        && order.deliveryAddress.phone is string
+        && order.deliveryAddress.house is string
+        && order.deliveryAddress.street is string
+        && order.deliveryAddress.city is string
+        && order.deliveryAddress.state is string
+        && order.deliveryAddress.pincode is string
+        && order.instructions is string
+        && order.instructions.size() <= 500
+        && validOrderItems(order, orderId)
+        && validOrderTotal(order)
+        && (restaurant.minimumOrderAmount is int
+          ? order.totalAmount >= restaurant.minimumOrderAmount
+          : true);
+    }
+
+    function customerCanReduceStock(foodId) {
+      let orderId = request.resource.data.lastOrderId;
+      let orderPath = /databases/$(database)/documents/orders/$(orderId);
+      let order = getAfter(orderPath).data;
+      let quantity = order.inventoryChanges[foodId];
+      return signedIn()
+        && userHasRole(request.auth.uid, 'customer')
+        && orderId is string
+        && !exists(orderPath)
+        && order.customerId == request.auth.uid
+        && order.orderStatus == 'New'
+        && order.restaurantId == resource.data.restaurantId
+        && order.foodIds.hasAny([foodId])
+        && orderQuantityForFood(order, foodId) == quantity
+        && quantity is int
+        && quantity > 0
+        && resource.data.stock >= quantity
+        && request.resource.data.stock == resource.data.stock - quantity
+        && request.resource.data.isAvailable
+          == (request.resource.data.stock > 0)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['stock', 'isAvailable', 'lastOrderId']);
+    }
+
+    function validSellerOrderTransition() {
+      let oldStatus = resource.data.orderStatus;
+      let newStatus = request.resource.data.orderStatus;
+      return (oldStatus == 'New'
+          && (newStatus == 'Accepted' || newStatus == 'Rejected'))
+        || (oldStatus == 'Accepted'
+          && (newStatus == 'Preparing' || newStatus == 'Cancelled'))
+        || (oldStatus == 'Preparing'
+          && (newStatus == 'Ready for Pickup' || newStatus == 'Cancelled'))
+        || (oldStatus == 'Ready for Pickup'
+          && (newStatus == 'Picked Up' || newStatus == 'Cancelled'))
+        || (oldStatus == 'Picked Up' && newStatus == 'Delivered');
+    }
+
+    function orderNotificationAllowed() {
+      let orderId = request.resource.data.orderId;
+      let orderPath = /databases/$(database)/documents/orders/$(orderId);
+      let order = getAfter(orderPath).data;
+      return orderId is string
+        && orderId == order.orderId
+        && request.resource.data.restaurantId == order.restaurantId
+        && request.resource.data.sellerId == order.sellerId
+        && request.resource.data.customerId == order.customerId
+        && ((request.resource.data.type == 'New Orders'
+            && order.customerId == request.auth.uid
+            && order.orderStatus == 'New')
+          || (request.resource.data.type == 'Order Updates'
+            && order.sellerId == request.auth.uid
+            && order.orderStatus == request.resource.data.status));
+    }
+
+    match /foods/{foodId} {
+      allow read: if resource.data.isPublished == true
+        || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if signedIn()
+        && sellerOwnsRestaurant(request.resource.data.restaurantId)
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'ownerId', 'restaurantId', 'restaurantName', 'name', 'category',
+          'price', 'discountedPrice', 'description', 'imageUrl', 'cuisine',
+          'preparationMinutes', 'stock', 'isAvailable', 'isPublished',
+          'isVegetarian', 'bestseller', 'featured', 'rating', 'reviews',
+          'popularity', 'createdAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.category is string
+        && request.resource.data.price is int
+        && request.resource.data.price > 0
+        && (request.resource.data.discountedPrice == null
+          || (request.resource.data.discountedPrice is int
+            && request.resource.data.discountedPrice > 0
+            && request.resource.data.discountedPrice < request.resource.data.price))
+        && request.resource.data.stock is int
+        && request.resource.data.stock >= 0
+        && request.resource.data.preparationMinutes is int
+        && request.resource.data.isPublished is bool
+        && request.resource.data.isAvailable is bool
+        && request.resource.data.rating == 0
+        && request.resource.data.reviews == 0
+        && request.resource.data.popularity == 0;
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && sellerOwnsRestaurant(resource.data.restaurantId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.restaurantId == resource.data.restaurantId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.lastOrderId == resource.data.lastOrderId
+        && request.resource.data.keys().hasOnly([
+          'ownerId', 'restaurantId', 'restaurantName', 'name', 'category',
+          'price', 'discountedPrice', 'description', 'imageUrl', 'cuisine',
+          'preparationMinutes', 'stock', 'isAvailable', 'isPublished',
+          'isVegetarian', 'bestseller', 'featured', 'rating', 'reviews',
+          'popularity', 'createdAt', 'lastOrderId'
+        ])
+        && request.resource.data.price is int
+        && request.resource.data.price > 0
+        && (request.resource.data.discountedPrice == null
+          || (request.resource.data.discountedPrice is int
+            && request.resource.data.discountedPrice > 0
+            && request.resource.data.discountedPrice < request.resource.data.price))
+        && request.resource.data.stock is int
+        && request.resource.data.stock >= 0
+        && request.resource.data.preparationMinutes is int
+        && request.resource.data.isPublished is bool
+        && request.resource.data.isAvailable is bool
+        && request.resource.data.rating == resource.data.rating
+        && request.resource.data.reviews == resource.data.reviews
+        && request.resource.data.popularity == resource.data.popularity;
+      allow update: if customerCanReduceStock(foodId);
+      allow delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && sellerOwnsRestaurant(resource.data.restaurantId);
+    }
+
+    match /users/{userId} {
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.role in ['customer', 'seller']
+        && request.resource.data.keys().hasOnly([
+          'uid', 'name', 'email', 'phone', 'role', 'createdAt'
+        ]);
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'email', 'phone'
+        ]);
+      allow delete: if false;
+    }
+
+    match /sellerApplications/{userId} {
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && userWillHaveRole(userId, 'seller')
+        && request.resource.data.uid == userId;
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow update, delete: if false;
+    }
+
+    match /restaurants/{restaurantId} {
+      allow read: if resource.data.isOpen == true
+        || (signedIn()
+          && (request.auth.uid == restaurantId
+            || resource.data.ownerId == request.auth.uid));
+      allow create: if signedIn()
+        && userWillHaveRole(restaurantId, 'seller')
+        && request.auth.uid == restaurantId
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.isOpen is bool
+        && request.resource.data.isApproved == true
+        && request.resource.data.minimumOrderAmount is int
+        && request.resource.data.minimumOrderAmount >= 0
+        && request.resource.data.keys().hasOnly([
+          'ownerId', 'restaurantName', 'name', 'description',
+          'restaurantPhone', 'restaurantEmail', 'phone', 'email',
+          'address', 'addressText', 'cuisine', 'openingTime', 'closingTime',
+          'workingDays', 'preparationMinutes', 'minimumOrderAmount',
+          'categories', 'isOpen', 'isApproved', 'logoUrl', 'coverImageUrl',
+          'scheduledClosures', 'createdAt'
+        ]);
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && sellerOwnsRestaurant(restaurantId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.isOpen is bool
+        && request.resource.data.isApproved == resource.data.isApproved
+        && request.resource.data.minimumOrderAmount is int
+        && request.resource.data.minimumOrderAmount >= 0
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'restaurantName', 'name', 'description', 'restaurantPhone',
+          'restaurantEmail', 'phone', 'email', 'address', 'addressText',
+          'cuisine', 'openingTime', 'closingTime', 'workingDays',
+          'preparationMinutes', 'minimumOrderAmount', 'categories',
+          'isOpen', 'logoUrl', 'coverImageUrl', 'scheduledClosures'
+        ]);
+      allow delete: if false;
+    }
+
+    match /orders/{orderId} {
+      allow read: if signedIn()
+        && (resource.data.customerId == request.auth.uid
+          || resource.data.sellerId == request.auth.uid);
+      allow create: if request.resource.data.orderId == orderId
+        && validNewOrder(request.resource.data, orderId);
+      allow update: if signedIn()
+        && resource.data.sellerId == request.auth.uid
+        && sellerOwnsRestaurant(resource.data.restaurantId)
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.sellerId == resource.data.sellerId
+        && request.resource.data.restaurantId == resource.data.restaurantId
+        && (
+          (validSellerOrderTransition()
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['orderStatus', 'paymentStatus', 'statusHistory'])
+            && request.resource.data.statusHistory is list
+            && request.resource.data.statusHistory.size()
+              == resource.data.statusHistory.size() + 1
+            && request.resource.data.statusHistory.hasAll(resource.data.statusHistory)
+            && ((request.resource.data.orderStatus == 'Delivered'
+                && request.resource.data.paymentStatus == 'Paid')
+              || ((request.resource.data.orderStatus == 'Rejected'
+                    || request.resource.data.orderStatus == 'Cancelled')
+                && request.resource.data.paymentStatus == 'Not applicable')
+              || ((request.resource.data.orderStatus == 'Accepted'
+                    || request.resource.data.orderStatus == 'Preparing'
+                    || request.resource.data.orderStatus == 'Ready for Pickup'
+                    || request.resource.data.orderStatus == 'Picked Up')
+                && request.resource.data.paymentStatus == resource.data.paymentStatus)))
+          || (request.resource.data.orderStatus == resource.data.orderStatus
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['preparationMinutes'])
+            && request.resource.data.preparationMinutes is int
+            && request.resource.data.preparationMinutes >= 5
+            && request.resource.data.preparationMinutes <= 180
+            && (resource.data.orderStatus == 'Accepted'
+              || resource.data.orderStatus == 'Preparing'))
+        );
+      allow delete: if false;
+    }
+
+    match /offers/{offerId} {
+      allow read: if resource.data.active == true
+        || (signedIn() && resource.data.sellerId == request.auth.uid);
+      allow create: if signedIn()
+        && sellerOwnsRestaurant(request.resource.data.restaurantId)
+        && request.resource.data.sellerId == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'sellerId', 'restaurantId', 'name', 'description', 'type',
+          'value', 'minimumOrder', 'maximumDiscount', 'startsAt',
+          'expiresAt', 'active', 'createdAt'
+        ]);
+      allow update: if signedIn()
+        && resource.data.sellerId == request.auth.uid
+        && sellerOwnsRestaurant(resource.data.restaurantId)
+        && request.resource.data.sellerId == resource.data.sellerId
+        && request.resource.data.restaurantId == resource.data.restaurantId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.keys().hasOnly([
+          'sellerId', 'restaurantId', 'name', 'description', 'type',
+          'value', 'minimumOrder', 'maximumDiscount', 'startsAt',
+          'expiresAt', 'active', 'createdAt'
+        ]);
+      allow delete: if signedIn()
+        && resource.data.sellerId == request.auth.uid
+        && sellerOwnsRestaurant(resource.data.restaurantId);
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create, delete: if false;
+      allow update: if signedIn()
+        && resource.data.sellerId == request.auth.uid
+        && sellerOwnsRestaurant(resource.data.restaurantId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['response']);
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if signedIn()
+        && (resource.data.sellerId == request.auth.uid
+          || resource.data.customerId == request.auth.uid);
+      allow update: if signedIn()
+        && (resource.data.sellerId == request.auth.uid
+          || resource.data.customerId == request.auth.uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['isRead']);
+      allow create: if signedIn()
+        && orderNotificationAllowed()
+        && request.resource.data.title is string
+        && request.resource.data.message is string
+        && request.resource.data.isRead == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly([
+          'sellerId', 'customerId', 'restaurantId', 'orderId',
+          'title', 'message', 'type', 'status', 'isRead', 'createdAt'
+        ]);
+      allow delete: if false;
+    }
+  }
+}

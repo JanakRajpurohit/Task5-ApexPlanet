@@ -1,0 +1,25 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "crave-4418b",
+          "appId": "1:32103084496:android:ecb7199752cdb0833149d5",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "crave-4418b",
+          "configurations": {
+            "android": "1:32103084496:android:ecb7199752cdb0833149d5",
+            "web": "1:32103084496:web:2a2a0dc08ca2d30f3149d5"
+          }
+        }
+      }
+    }
+  }
+}
