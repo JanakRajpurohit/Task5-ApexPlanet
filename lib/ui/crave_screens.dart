@@ -722,7 +722,8 @@ class HomeTab extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              if (store.catalogLoading && store.foods.isEmpty)
+              _PromoBanner(),
+              const SizedBox(height: 18),
                 const LinearProgressIndicator(),
               if (store.catalogError != null)
                 Card(
@@ -903,7 +904,7 @@ class SearchTab extends StatelessWidget {
             Expanded(
               child: store.filteredFoods.isEmpty
                   ? _EmptyState(
-                      emoji: '🔎',
+                      icon: Icons.search_off_rounded,
                       title: 'No dishes found',
                       description:
                           'Try another food or browse a different category.',
@@ -1041,7 +1042,7 @@ class CartTab extends StatelessWidget {
               if (store.cartItems.isEmpty)
                 Expanded(
                   child: _EmptyState(
-                    emoji: '🛍️',
+                    icon: Icons.shopping_bag_outlined,
                     title: 'Your cart is hungry',
                     description:
                         'Add something delicious and it will show up here.',
@@ -1109,7 +1110,7 @@ class FavouritesTab extends StatelessWidget {
               if (store.favouriteFoods.isEmpty)
                 Expanded(
                   child: _EmptyState(
-                    emoji: '♡',
+                    icon: Icons.favorite_border,
                     title: 'No favourites yet',
                     description:
                         'Tap the heart on a dish to save it for later.',
@@ -1641,7 +1642,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           appBar: AppBar(title: const Text('Checkout')),
           body: store.cartItems.isEmpty
               ? _EmptyState(
-                  emoji: '🛍️',
+                  icon: Icons.shopping_bag_outlined,
                   title: 'Nothing to checkout',
                   description: 'Add food to your cart before placing an order.',
                   buttonLabel: 'Continue shopping',
@@ -2218,14 +2219,14 @@ class _SummaryRow extends StatelessWidget {
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
-    required this.emoji,
+    required this.icon,
     required this.title,
     required this.description,
     required this.buttonLabel,
     required this.onPressed,
   });
 
-  final String emoji;
+  final IconData icon;
   final String title;
   final String description;
   final String buttonLabel;
@@ -2239,16 +2240,28 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 64)),
-            const SizedBox(height: 15),
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE6DC),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 40, color: const Color(0xFFFF7043)),
+            ),
+            const SizedBox(height: 18),
             Text(
               title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 7),
-            Text(description, textAlign: TextAlign.center),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: _muted),
+            ),
+            const SizedBox(height: 22),
             SizedBox(
               width: 200,
               child: PrimaryButton(label: buttonLabel, onPressed: onPressed),
@@ -2380,6 +2393,86 @@ class _CheckoutHeading extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+    );
+  }
+}
+
+class _PromoBanner extends StatelessWidget {
+  const _PromoBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 132,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF7043), Color(0xFFFF8A65)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF7043).withValues(alpha: 0.28),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -10,
+            bottom: -10,
+            child: Icon(
+              Icons.fastfood_rounded,
+              size: 120,
+              color: Colors.white.withValues(alpha: 0.18),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Hungry? We\u2019ve got you!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Get up to 30% OFF on your first order.',
+                  style: TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Order Now \u2192',
+                    style: TextStyle(
+                      color: Color(0xFFFF7043),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

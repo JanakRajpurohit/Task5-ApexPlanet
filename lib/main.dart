@@ -118,6 +118,89 @@ class CraveApp extends StatelessWidget {
           borderSide: const BorderSide(color: coral, width: 1.5),
         ),
       ),
+      cardTheme: CardThemeData(
+        color: scheme.surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 6),
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: scheme.surface,
+        indicatorColor: coral.withValues(alpha: 0.16),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const TextStyle(
+              color: coral,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            );
+          }
+          return TextStyle(color: scheme.onSurfaceVariant, fontSize: 12);
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: coral);
+          }
+          return IconThemeData(color: scheme.onSurfaceVariant);
+        }),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: coral,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF20645F),
+          side: BorderSide(color: scheme.outlineVariant),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: scheme.surface,
+        selectedColor: const Color(0xFF20645F),
+        labelStyle: TextStyle(color: scheme.onSurface, fontWeight: FontWeight.w600),
+        secondaryLabelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        side: BorderSide(color: scheme.outlineVariant),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: scheme.onSurface,
+        contentTextStyle: TextStyle(color: scheme.surface),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      dialogTheme: DialogThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: coral),
+      dividerTheme: DividerThemeData(color: scheme.outlineVariant, thickness: 1),
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 

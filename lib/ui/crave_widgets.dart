@@ -13,11 +13,18 @@ class CraveWordmark extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
             color: const Color(0xFFFF7043),
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF7043).withValues(alpha: 0.28),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           alignment: Alignment.center,
           child: const Text(
@@ -29,13 +36,14 @@ class CraveWordmark extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 9),
+        const SizedBox(width: 10),
         Text(
           'crave',
           style: TextStyle(
-            fontSize: 25,
+            fontSize: 26,
             fontWeight: FontWeight.w900,
-            color: light ? Colors.white : const Color(0xFF292321),
+            letterSpacing: -0.5,
+            color: light ? Colors.white : const Color(0xFF302A28),
           ),
         ),
       ],
@@ -65,15 +73,25 @@ class PrimaryButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: const Color(0xFFFF7043),
           foregroundColor: Colors.white,
+          elevation: onPressed == null ? 0 : 2,
+          shadowColor: const Color(0xFFFF7043).withValues(alpha: 0.35),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[Icon(icon), const SizedBox(width: 8)],
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+            if (icon != null) ...[Icon(icon, size: 20), const SizedBox(width: 8)],
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+            ),
           ],
         ),
       ),
@@ -99,13 +117,19 @@ class SecondaryButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF205E59),
-          side: const BorderSide(color: Color(0xFFECE5DF)),
+          foregroundColor: const Color(0xFF20645F),
+          side: const BorderSide(color: Color(0xFFF0E5DF)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
         ),
-        child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        ),
       ),
     );
   }
@@ -141,7 +165,7 @@ class FoodImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!isDirectImageUrl(food.imageUrl)) {
-      return _placeholder();
+      return _placeholder(height, width, borderRadius);
     }
 
     return ClipRRect(
@@ -152,26 +176,28 @@ class FoodImage extends StatelessWidget {
         child: Image.network(
           food.imageUrl,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _placeholder(),
+          errorBuilder: (_, _, _) =>
+              _placeholder(height, width, borderRadius),
         ),
       ),
     );
   }
 
-  Widget _placeholder() => ClipRRect(
-    borderRadius: BorderRadius.circular(borderRadius),
-    child: SizedBox(
-      height: height,
-      width: width,
-      child: Container(
-        color: const Color(0xFFFFE6DC),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.restaurant,
-          size: 52,
-          color: Color(0xFFFF7043),
+  static Widget _placeholder(double height, double? width, double radius) =>
+      ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: SizedBox(
+          height: height,
+          width: width,
+          child: Container(
+            color: const Color(0xFFFFE6DC),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.restaurant_rounded,
+              size: 52,
+              color: Color(0xFFFF7043),
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
